@@ -1,0 +1,15 @@
+[Unit]
+Description=LifeLogger Window Watcher
+After=lifelogger.service
+
+[Service]
+Type=simple
+ExecStart=%h/.local/share/lifelogger/venv/bin/python window_watcher.py
+WorkingDirectory=%E/lifelogger/daemon
+Restart=always
+RestartSec=5
+Environment=DISPLAY=:0
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

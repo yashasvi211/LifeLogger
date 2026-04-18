@@ -94,7 +94,8 @@ def list_days(limit: int = 30):
 @app.get("/day/{day}")
 def get_day(day: str, min_active_seconds: float = 0):
     """
-    Return all logs for a specific day (YYYY-MM-DD), grouped by table.
+    Return logs for a specific day (YYYY-MM-DD), grouped by table.
+    Note: min_active_seconds is applied as a per-row filter.
     """
     conn = get_connection()
     try:
@@ -172,7 +173,7 @@ def get_day(day: str, min_active_seconds: float = 0):
 def get_day_summary(day: str, min_active_seconds: float = 0, limit: int = 20):
     """
     Aggregate active_seconds by application (window_log.app_name) and domain (tab_log.domain).
-    Applies the same min_active_seconds filter at row level before aggregation.
+    min_active_seconds is applied on the aggregated SUM(active_seconds) per group.
     """
     conn = get_connection()
     try:
@@ -182,8 +183,8 @@ def get_day_summary(day: str, min_active_seconds: float = 0, limit: int = 20):
                    SUM(active_seconds) AS seconds
             FROM window_log
             WHERE date(timestamp) = date(?)
-              AND active_seconds >= ?
             GROUP BY key
+            HAVING SUM(active_seconds) >= ?
             ORDER BY seconds DESC
             LIMIT ?
             """,
@@ -196,8 +197,8 @@ def get_day_summary(day: str, min_active_seconds: float = 0, limit: int = 20):
                    SUM(active_seconds) AS seconds
             FROM tab_log
             WHERE date(timestamp) = date(?)
-              AND active_seconds >= ?
             GROUP BY key
+            HAVING SUM(active_seconds) >= ?
             ORDER BY seconds DESC
             LIMIT ?
             """,

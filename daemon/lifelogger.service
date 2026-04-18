@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 ExecStart=%h/.local/share/lifelogger/venv/bin/uvicorn server:app --host 127.0.0.1 --port 7777
-WorkingDirectory=%E/lifelogger/daemon
+WorkingDirectory=%h/.config/lifelogger/daemon
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1

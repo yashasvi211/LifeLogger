@@ -53,12 +53,170 @@ app = FastAPI(title="LifeLogger", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["POST"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────
+
+@app.get("/days")
+def list_days(limit: int = 30):
+    """
+    Return distinct days (YYYY-MM-DD) present in any table, newest first.
+    """
+    conn = get_connection()
+    try:
+        # timestamp is stored as TEXT (ISO-like). SQLite date() extracts YYYY-MM-DD.
+        rows = conn.execute(
+            """
+            SELECT day FROM (
+              SELECT date(timestamp) AS day FROM tab_log
+              UNION
+              SELECT date(timestamp) AS day FROM window_log
+              UNION
+              SELECT date(timestamp) AS day FROM checkins
+            )
+            WHERE day IS NOT NULL
+            ORDER BY day DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        days = [r[0] for r in rows if r and r[0]]
+        return {"days": days}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        conn.close()
+
+
+@app.get("/day/{day}")
+def get_day(day: str, min_active_seconds: float = 0):
+    """
+    Return all logs for a specific day (YYYY-MM-DD), grouped by table.
+    """
+    conn = get_connection()
+    try:
+        tab_rows = conn.execute(
+            """
+            SELECT id, timestamp, domain, title, url, active_seconds, idle_seconds, yt_progress, category
+            FROM tab_log
+            WHERE date(timestamp) = date(?)
+              AND active_seconds >= ?
+            ORDER BY timestamp DESC
+            """,
+            (day, min_active_seconds),
+        ).fetchall()
+
+        window_rows = conn.execute(
+            """
+            SELECT id, timestamp, app_name, window_title, active_seconds, idle_seconds
+            FROM window_log
+            WHERE date(timestamp) = date(?)
+              AND active_seconds >= ?
+            ORDER BY timestamp DESC
+            """,
+            (day, min_active_seconds),
+        ).fetchall()
+
+        checkin_rows = conn.execute(
+            """
+            SELECT id, timestamp, note
+            FROM checkins
+            WHERE date(timestamp) = date(?)
+            ORDER BY timestamp DESC
+            """,
+            (day,),
+        ).fetchall()
+
+        return {
+            "day": day,
+            "min_active_seconds": min_active_seconds,
+            "tab_log": [
+                {
+                    "id": r[0],
+                    "timestamp": r[1],
+                    "domain": r[2],
+                    "title": r[3],
+                    "url": r[4],
+                    "active_seconds": r[5],
+                    "idle_seconds": r[6],
+                    "yt_progress": r[7],
+                    "category": r[8],
+                }
+                for r in tab_rows
+            ],
+            "window_log": [
+                {
+                    "id": r[0],
+                    "timestamp": r[1],
+                    "app_name": r[2],
+                    "window_title": r[3],
+                    "active_seconds": r[4],
+                    "idle_seconds": r[5],
+                }
+                for r in window_rows
+            ],
+            "checkins": [
+                {"id": r[0], "timestamp": r[1], "note": r[2]} for r in checkin_rows
+            ],
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        conn.close()
+
+
+@app.get("/day/{day}/summary")
+def get_day_summary(day: str, min_active_seconds: float = 0, limit: int = 20):
+    """
+    Aggregate active_seconds by application (window_log.app_name) and domain (tab_log.domain).
+    Applies the same min_active_seconds filter at row level before aggregation.
+    """
+    conn = get_connection()
+    try:
+        app_rows = conn.execute(
+            """
+            SELECT COALESCE(NULLIF(TRIM(app_name), ''), 'Unknown app') AS key,
+                   SUM(active_seconds) AS seconds
+            FROM window_log
+            WHERE date(timestamp) = date(?)
+              AND active_seconds >= ?
+            GROUP BY key
+            ORDER BY seconds DESC
+            LIMIT ?
+            """,
+            (day, min_active_seconds, limit),
+        ).fetchall()
+
+        domain_rows = conn.execute(
+            """
+            SELECT COALESCE(NULLIF(TRIM(domain), ''), 'unknown') AS key,
+                   SUM(active_seconds) AS seconds
+            FROM tab_log
+            WHERE date(timestamp) = date(?)
+              AND active_seconds >= ?
+            GROUP BY key
+            ORDER BY seconds DESC
+            LIMIT ?
+            """,
+            (day, min_active_seconds, limit),
+        ).fetchall()
+
+        return {
+            "day": day,
+            "min_active_seconds": min_active_seconds,
+            "apps": [{"app_name": r[0], "active_seconds": float(r[1] or 0)} for r in app_rows],
+            "domains": [
+                {"domain": r[0], "active_seconds": float(r[1] or 0)} for r in domain_rows
+            ],
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        conn.close()
+
 
 @app.post("/log/tab")
 def log_tab(payload: TabLogPayload):
@@ -125,3 +283,9 @@ def log_checkin(payload: CheckinPayload):
     finally:
         conn.close()
     return {"status": "ok"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("server:app", host="127.0.0.1", port=7777, reload=True)

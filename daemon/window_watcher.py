@@ -9,7 +9,6 @@ import gi
 gi.require_version('Atspi', '2.0')
 from gi.repository import Atspi
 
-import json
 import subprocess
 import time
 from datetime import datetime, timezone
@@ -87,9 +86,13 @@ def main() -> None:
     prev_title = ""
     active_seconds = 0.0
     idle_seconds = 0.0
+    last_t = time.monotonic()
 
     while True:
         time.sleep(POLL_INTERVAL)
+        now_t = time.monotonic()
+        dt = max(0.0, now_t - last_t)
+        last_t = now_t
 
         info = get_active_window_info()
         if info is None:
@@ -99,17 +102,22 @@ def main() -> None:
         idle_ms = get_idle_ms()
         is_idle = idle_ms >= IDLE_THRESHOLD
 
-        # Accumulate time
-        if is_idle:
-            idle_seconds += POLL_INTERVAL
-        else:
-            active_seconds += POLL_INTERVAL
+        # First observation: initialize the "current" window without losing time.
+        if not prev_app and not prev_title:
+            prev_app = app_name
+            prev_title = title
+            continue
 
-        # Detect window change
-        if app_name != prev_app or title != prev_title:
-            if prev_app or prev_title:
-                post_log(prev_app, prev_title, active_seconds, idle_seconds)
-            # Reset for new window
+        changed = app_name != prev_app or title != prev_title
+
+        # Attribute elapsed time to the previous window (not the new one).
+        if is_idle:
+            idle_seconds += dt
+        else:
+            active_seconds += dt
+
+        if changed:
+            post_log(prev_app, prev_title, active_seconds, idle_seconds)
             prev_app = app_name
             prev_title = title
             active_seconds = 0.0

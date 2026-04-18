@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 
 const DAEMON_BASE_URL = "http://127.0.0.1:7777";
-// Threshold is applied per-app/per-domain totals (not per individual row),
-// because the daemon stores time in many small chunks.
-const MIN_ACTIVE_SECONDS = 5 * 60;
+const MIN_ACTIVE_SECONDS = 0;
 
 function formatSeconds(s) {
   if (s == null) return "";
@@ -42,7 +40,7 @@ function BarList({ title, rows, getLabel, getSeconds }) {
             </div>
           );
         })}
-        {rows.length === 0 ? <div className="muted">No data above 5 minutes.</div> : null}
+        {rows.length === 0 ? <div className="muted">No data.</div> : null}
       </div>
     </section>
   );
@@ -51,10 +49,8 @@ function BarList({ title, rows, getLabel, getSeconds }) {
 function App() {
   const [days, setDays] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
-  const [dayData, setDayData] = useState(null);
   const [summary, setSummary] = useState(null);
   const [loadingDays, setLoadingDays] = useState(true);
-  const [loadingDay, setLoadingDay] = useState(false);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [error, setError] = useState("");
 
@@ -86,31 +82,6 @@ function App() {
   useEffect(() => {
     if (!selectedDay) return;
     let cancelled = false;
-    async function loadDay() {
-      setLoadingDay(true);
-      setError("");
-      try {
-        // Fetch full day; we'll filter rows based on summary totals.
-        const res = await fetch(`${DAEMON_BASE_URL}/day/${encodeURIComponent(selectedDay)}`);
-        if (!res.ok) throw new Error(`Daemon /day failed (${res.status})`);
-        const json = await res.json();
-        if (cancelled) return;
-        setDayData(json);
-      } catch (e) {
-        if (!cancelled) setError(String(e?.message ?? e));
-      } finally {
-        if (!cancelled) setLoadingDay(false);
-      }
-    }
-    loadDay();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedDay]);
-
-  useEffect(() => {
-    if (!selectedDay) return;
-    let cancelled = false;
     async function loadSummary() {
       setLoadingSummary(true);
       setError("");
@@ -134,29 +105,9 @@ function App() {
     };
   }, [selectedDay]);
 
-  const filtered = useMemo(() => {
-    const allowedApps = new Set((summary?.apps ?? []).map((r) => r.app_name));
-    const allowedDomains = new Set((summary?.domains ?? []).map((r) => r.domain));
-    const tab = (dayData?.tab_log ?? []).filter((r) => allowedDomains.has(r.domain));
-    const win = (dayData?.window_log ?? []).filter((r) => allowedApps.has(r.app_name || "Unknown app"));
-    const checks = dayData?.checkins ?? [];
-    return { tab, win, checks };
-  }, [dayData, summary]);
-
-  const stats = useMemo(() => {
-    const tabs = filtered.tab;
-    const wins = filtered.win;
-    const checks = filtered.checks;
-    const tabActive = tabs.reduce((a, r) => a + (Number(r.active_seconds) || 0), 0);
-    const winActive = wins.reduce((a, r) => a + (Number(r.active_seconds) || 0), 0);
-    return {
-      tabsCount: tabs.length,
-      winsCount: wins.length,
-      checksCount: checks.length,
-      tabActive,
-      winActive,
-    };
-  }, [filtered]);
+  const totals = summary?.totals;
+  const computer = totals?.computer;
+  const browser = totals?.browser;
 
   return (
     <div className="shell">
@@ -199,110 +150,52 @@ function App() {
         <header className="contentHeader">
           <div>
             <div className="contentTitle">{selectedDay ?? "—"}</div>
-            <div className="contentMeta">
-              Tabs: {stats.tabsCount} • Windows: {stats.winsCount} • Check-ins: {stats.checksCount}
-            </div>
+            <div className="contentMeta">Date-wise total time spent</div>
           </div>
-          <div className="contentMeta">
-            Showing only apps/domains ≥ 5 min • Active (tabs): {formatSeconds(stats.tabActive)} • Active (windows):{" "}
-            {formatSeconds(stats.winActive)}
-          </div>
+          <div className="contentMeta">Source: {DAEMON_BASE_URL}</div>
         </header>
 
         {error ? <div className="errorBox">{error}</div> : null}
 
-        {loadingDay ? (
-          <div className="panel">Loading day…</div>
-        ) : !selectedDay ? (
+        {!selectedDay ? (
           <div className="panel">Select a day.</div>
-        ) : !dayData ? (
-          <div className="panel">No data.</div>
         ) : (
-          <div className="grid">
+          <>
             {loadingSummary ? (
-              <section className="panel span2">Loading graphs…</section>
+              <div className="panel">Loading…</div>
+            ) : !summary ? (
+              <div className="panel">No data.</div>
             ) : (
               <>
-                <BarList
-                  title="Time spent (apps)"
-                  rows={summary?.apps ?? []}
-                  getLabel={(r) => r.app_name}
-                  getSeconds={(r) => r.active_seconds}
-                />
-                <BarList
-                  title="Time spent (domains)"
-                  rows={summary?.domains ?? []}
-                  getLabel={(r) => r.domain}
-                  getSeconds={(r) => r.active_seconds}
-                />
+                <div className="kpiGrid">
+                  <div className="kpi">
+                    <div className="kpiLabel">Computer time</div>
+                    <div className="kpiValue mono">{formatSeconds(computer?.total_seconds ?? 0)}</div>
+                    <div className="kpiMeta">
+                      Active {formatSeconds(computer?.active_seconds ?? 0)} • Idle{" "}
+                      {formatSeconds(computer?.idle_seconds ?? 0)}
+                      {browser ? ` • Browser active ${formatSeconds(browser.active_seconds ?? 0)}` : ""}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid">
+                  <BarList
+                    title="Time spent by application (active time)"
+                    rows={summary?.apps ?? []}
+                    getLabel={(r) => r.app_name}
+                    getSeconds={(r) => r.active_seconds}
+                  />
+                  <BarList
+                    title="Browser time by domain (active time)"
+                    rows={summary?.domains ?? []}
+                    getLabel={(r) => r.domain}
+                    getSeconds={(r) => r.active_seconds}
+                  />
+                </div>
               </>
             )}
-
-            <section className="panel">
-              <div className="panelTitle">Tab log</div>
-              <div className="list">
-                {(filtered.tab ?? []).map((r) => (
-                  <div key={r.id} className="rowItem">
-                    <div className="rowTop">
-                      <div className="rowPrimary">
-                        <span className="mono">{timeFromTimestamp(r.timestamp)}</span>{" "}
-                        <span className="pill">{r.category}</span>{" "}
-                        <span className="strong">{r.domain}</span>
-                      </div>
-                      <div className="rowSecondary">
-                        {formatSeconds(r.active_seconds)}
-                        {Number(r.idle_seconds) ? ` • idle ${formatSeconds(r.idle_seconds)}` : ""}
-                      </div>
-                    </div>
-                    {r.title ? <div className="rowText">{r.title}</div> : null}
-                    {r.url ? <div className="rowUrl mono">{r.url}</div> : null}
-                  </div>
-                ))}
-                {(filtered.tab ?? []).length === 0 ? <div className="muted">No tab logs ≥ 5 min (by domain).</div> : null}
-              </div>
-            </section>
-
-            <section className="panel">
-              <div className="panelTitle">Window log</div>
-              <div className="list">
-                {(filtered.win ?? []).map((r) => (
-                  <div key={r.id} className="rowItem">
-                    <div className="rowTop">
-                      <div className="rowPrimary">
-                        <span className="mono">{timeFromTimestamp(r.timestamp)}</span>{" "}
-                        <span className="strong">{r.app_name || "Unknown app"}</span>
-                      </div>
-                      <div className="rowSecondary">
-                        {formatSeconds(r.active_seconds)}
-                        {Number(r.idle_seconds) ? ` • idle ${formatSeconds(r.idle_seconds)}` : ""}
-                      </div>
-                    </div>
-                    {r.window_title ? <div className="rowText">{r.window_title}</div> : null}
-                  </div>
-                ))}
-                {(filtered.win ?? []).length === 0 ? (
-                  <div className="muted">No window logs ≥ 5 min (by app).</div>
-                ) : null}
-              </div>
-            </section>
-
-            <section className="panel span2">
-              <div className="panelTitle">Check-ins</div>
-              <div className="list">
-                {(dayData.checkins ?? []).map((r) => (
-                  <div key={r.id} className="rowItem">
-                    <div className="rowTop">
-                      <div className="rowPrimary">
-                        <span className="mono">{timeFromTimestamp(r.timestamp)}</span>
-                      </div>
-                    </div>
-                    <div className="rowText">{r.note || <span className="muted">Empty note</span>}</div>
-                  </div>
-                ))}
-                {(dayData.checkins ?? []).length === 0 ? <div className="muted">No check-ins.</div> : null}
-              </div>
-            </section>
-          </div>
+          </>
         )}
       </main>
     </div>

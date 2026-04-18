@@ -160,6 +160,38 @@ body {
   min-height: 0;
 }
 
+.kpiGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.kpi {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 12px 10px;
+  backdrop-filter: blur(10px);
+}
+
+.kpiLabel {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.kpiValue {
+  margin-top: 8px;
+  font-size: 22px;
+  font-weight: 850;
+  letter-spacing: 0.2px;
+}
+
+.kpiMeta {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .barList {
   display: flex;
   flex-direction: column;
@@ -308,6 +340,9 @@ body {
 
 @media (max-width: 980px) {
   .shell {
+    grid-template-columns: 1fr;
+  }
+  .kpiGrid {
     grid-template-columns: 1fr;
   }
   .grid {

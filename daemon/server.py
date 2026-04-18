@@ -180,12 +180,13 @@ def get_day_summary(day: str, min_active_seconds: float = 0, limit: int = 20):
         app_rows = conn.execute(
             """
             SELECT COALESCE(NULLIF(TRIM(app_name), ''), 'Unknown app') AS key,
-                   SUM(active_seconds) AS seconds
+                   SUM(active_seconds) AS active_seconds,
+                   SUM(idle_seconds) AS idle_seconds
             FROM window_log
             WHERE date(timestamp) = date(?)
             GROUP BY key
             HAVING SUM(active_seconds) >= ?
-            ORDER BY seconds DESC
+            ORDER BY active_seconds DESC
             LIMIT ?
             """,
             (day, min_active_seconds, limit),
@@ -194,23 +195,71 @@ def get_day_summary(day: str, min_active_seconds: float = 0, limit: int = 20):
         domain_rows = conn.execute(
             """
             SELECT COALESCE(NULLIF(TRIM(domain), ''), 'unknown') AS key,
-                   SUM(active_seconds) AS seconds
+                   SUM(active_seconds) AS active_seconds,
+                   SUM(idle_seconds) AS idle_seconds
             FROM tab_log
             WHERE date(timestamp) = date(?)
             GROUP BY key
             HAVING SUM(active_seconds) >= ?
-            ORDER BY seconds DESC
+            ORDER BY active_seconds DESC
             LIMIT ?
             """,
             (day, min_active_seconds, limit),
         ).fetchall()
 
+        totals_row = conn.execute(
+            """
+            SELECT
+              COALESCE((SELECT SUM(active_seconds) FROM window_log WHERE date(timestamp)=date(?)), 0) AS window_active,
+              COALESCE((SELECT SUM(idle_seconds)   FROM window_log WHERE date(timestamp)=date(?)), 0) AS window_idle,
+              COALESCE((SELECT SUM(active_seconds) FROM tab_log    WHERE date(timestamp)=date(?)), 0) AS tab_active,
+              COALESCE((SELECT SUM(idle_seconds)   FROM tab_log    WHERE date(timestamp)=date(?)), 0) AS tab_idle
+            """,
+            (day, day, day, day),
+        ).fetchone()
+        window_active = float((totals_row[0] if totals_row else 0) or 0)
+        window_idle = float((totals_row[1] if totals_row else 0) or 0)
+        tab_active = float((totals_row[2] if totals_row else 0) or 0)
+        tab_idle = float((totals_row[3] if totals_row else 0) or 0)
+
         return {
             "day": day,
             "min_active_seconds": min_active_seconds,
-            "apps": [{"app_name": r[0], "active_seconds": float(r[1] or 0)} for r in app_rows],
+            "totals": {
+                "computer": {
+                    "active_seconds": window_active,
+                    "idle_seconds": window_idle,
+                    "total_seconds": window_active + window_idle,
+                },
+                "browser": {
+                    "active_seconds": tab_active,
+                    "idle_seconds": tab_idle,
+                    "total_seconds": tab_active + tab_idle,
+                },
+                # Do NOT add browser + computer: tab_log is a breakdown inside the browser app.
+                "overall": {
+                    "active_seconds": window_active,
+                    "idle_seconds": window_idle,
+                    "total_seconds": window_active + window_idle,
+                },
+            },
+            "apps": [
+                {
+                    "app_name": r[0],
+                    "active_seconds": float(r[1] or 0),
+                    "idle_seconds": float(r[2] or 0),
+                    "total_seconds": float((r[1] or 0) + (r[2] or 0)),
+                }
+                for r in app_rows
+            ],
             "domains": [
-                {"domain": r[0], "active_seconds": float(r[1] or 0)} for r in domain_rows
+                {
+                    "domain": r[0],
+                    "active_seconds": float(r[1] or 0),
+                    "idle_seconds": float(r[2] or 0),
+                    "total_seconds": float((r[1] or 0) + (r[2] or 0)),
+                }
+                for r in domain_rows
             ],
         }
     except Exception as exc:

@@ -44,6 +44,7 @@ body {
   grid-template-columns: 280px 1fr;
   gap: 14px;
   padding: 14px;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -127,6 +128,7 @@ body {
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .contentHeader {
@@ -174,28 +176,79 @@ body {
   backdrop-filter: blur(10px);
 }
 
+.kpiRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.kpiInfo {
+  display: flex;
+  flex-direction: column;
+}
+
 .kpiLabel {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .kpiValue {
-  margin-top: 8px;
-  font-size: 22px;
+  margin-top: 2px;
+  font-size: 28px;
   font-weight: 850;
   letter-spacing: 0.2px;
 }
 
-.kpiMeta {
-  margin-top: 6px;
-  color: var(--muted);
+.kpiLegendList {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 14px;
+}
+
+.kpiLegendItem {
+  display: flex;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.85);
   font-size: 12px;
 }
+
+.kpiChartContainer {
+  flex-shrink: 0;
+  padding-right: 20px;
+}
+
+.kpiDonut {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  -webkit-mask-image: radial-gradient(circle at center, transparent 52%, black 53%);
+  mask-image: radial-gradient(circle at center, transparent 52%, black 53%);
+}
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  margin-left: 8px;
+}
+.dot:first-child {
+  margin-left: 0;
+}
+.dot.browser { background: rgba(167, 139, 250, 0.85); }
+.dot.active { background: rgba(125, 211, 252, 0.85); }
+.dot.idle { background: rgba(255, 255, 255, 0.3); }
 
 .barList {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow-y: auto;
+  min-height: 0;
+  max-height: 45vh;
+  padding-right: 4px;
 }
 
 .barRow {
@@ -222,18 +275,35 @@ body {
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid rgba(255, 255, 255, 0.10);
   overflow: hidden;
+  display: flex;
 }
 
 .barFill {
   height: 100%;
   background: linear-gradient(90deg, rgba(125, 211, 252, 0.85), rgba(167, 139, 250, 0.85));
-  border-radius: 999px;
+}
+
+.barFillIdle {
+  height: 100%;
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .barValue {
-  color: var(--muted);
-  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 11px;
   white-space: nowrap;
+}
+
+.activeTime {
+  color: rgba(125, 211, 252, 0.95);
+  font-weight: 500;
+}
+
+.idleTime {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
 }
 
 .panel {
@@ -243,6 +313,8 @@ body {
   padding: 12px 12px 10px;
   backdrop-filter: blur(10px);
   min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .panelTitle {

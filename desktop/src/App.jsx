@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import Sidebar from "./Sidebar";
+import BarList from "./BarList";
 import "./App.css";
 
 const DAEMON_BASE_URL = "http://127.0.0.1:7777";
@@ -17,33 +19,6 @@ function timeFromTimestamp(ts) {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return ts;
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-function BarList({ title, rows, getLabel, getSeconds }) {
-  const max = Math.max(1, ...rows.map((r) => Number(getSeconds(r)) || 0));
-  return (
-    <section className="panel">
-      <div className="panelTitle">{title}</div>
-      <div className="barList">
-        {rows.map((r, idx) => {
-          const secs = Number(getSeconds(r)) || 0;
-          const pct = Math.max(0, Math.min(100, (secs / max) * 100));
-          return (
-            <div key={`${getLabel(r)}-${idx}`} className="barRow">
-              <div className="barLabel">
-                <span className="strong">{getLabel(r)}</span>
-              </div>
-              <div className="barTrack">
-                <div className="barFill" style={{ width: `${pct}%` }} />
-              </div>
-              <div className="barValue mono">{formatSeconds(secs)}</div>
-            </div>
-          );
-        })}
-        {rows.length === 0 ? <div className="muted">No data.</div> : null}
-      </div>
-    </section>
-  );
 }
 
 function App() {
@@ -111,40 +86,12 @@ function App() {
 
   return (
     <div className="shell">
-      <aside className="sidebar">
-        <div className="sidebarHeader">
-          <div className="appTitle">LifeLogger</div>
-          <div className="appSub">Date-wise logs</div>
-        </div>
-
-        <div className="sidebarSection">
-          <div className="sidebarLabel">Days</div>
-          {loadingDays ? (
-            <div className="muted">Loading…</div>
-          ) : days.length === 0 ? (
-            <div className="muted">No data yet.</div>
-          ) : (
-            <div className="dayList">
-              {days.map((d) => (
-                <button
-                  key={d}
-                  className={`dayItem ${selectedDay === d ? "active" : ""}`}
-                  onClick={() => setSelectedDay(d)}
-                  type="button"
-                >
-                  {d}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="sidebarFooter">
-          <div className="muted">
-            Source: <span className="mono">{DAEMON_BASE_URL}</span>
-          </div>
-        </div>
-      </aside>
+      <Sidebar
+        days={days}
+        loadingDays={loadingDays}
+        selectedDay={selectedDay}
+        setSelectedDay={setSelectedDay}
+      />
 
       <main className="content">
         <header className="contentHeader">
@@ -168,29 +115,66 @@ function App() {
             ) : (
               <>
                 <div className="kpiGrid">
-                  <div className="kpi">
-                    <div className="kpiLabel">Computer time</div>
-                    <div className="kpiValue mono">{formatSeconds(computer?.total_seconds ?? 0)}</div>
-                    <div className="kpiMeta">
-                      Active {formatSeconds(computer?.active_seconds ?? 0)} • Idle{" "}
-                      {formatSeconds(computer?.idle_seconds ?? 0)}
-                      {browser ? ` • Browser active ${formatSeconds(browser.active_seconds ?? 0)}` : ""}
+                  <div className="kpi kpiRow">
+                    <div className="kpiInfo">
+                      <div className="kpiLabel">Computer time</div>
+                      <div className="kpiValue mono">{formatSeconds(computer?.total_seconds ?? 0)}</div>
+                      <div className="kpiLegendList">
+                        <div className="kpiLegendItem">
+                          <span className="dot browser"></span>Browser {formatSeconds(Math.min(browser?.active_seconds || 0, computer?.active_seconds || 0))}
+                        </div>
+                        <div className="kpiLegendItem">
+                          <span className="dot active"></span>Other App {formatSeconds(Math.max(0, (computer?.active_seconds || 0) - (browser?.active_seconds || 0)))}
+                        </div>
+                        <div className="kpiLegendItem">
+                          <span className="dot idle"></span>Idle {formatSeconds(computer?.idle_seconds ?? 0)}
+                        </div>
+                      </div>
                     </div>
+
+                    {(() => {
+                      const cTotal = computer?.total_seconds || 1;
+                      const cActive = computer?.active_seconds || 0;
+                      const cIdle = computer?.idle_seconds || 0;
+                      const bActive = Math.min(browser?.active_seconds || 0, cActive);
+                      const otherActive = cActive - bActive;
+                      
+                      const bPct = (bActive / cTotal) * 100;
+                      const oPct = (otherActive / cTotal) * 100;
+
+                      const gradient = `conic-gradient(
+                        rgba(167, 139, 250, 0.85) 0% ${bPct}%, 
+                        rgba(125, 211, 252, 0.85) ${bPct}% ${bPct + oPct}%, 
+                        rgba(255, 255, 255, 0.15) ${bPct + oPct}% 100%
+                      )`;
+
+                      return (
+                        <div className="kpiChartContainer">
+                          <div 
+                            className="kpiDonut" 
+                            style={{ background: gradient }}
+                            title={`Browser: ${formatSeconds(bActive)} | Other: ${formatSeconds(otherActive)} | Idle: ${formatSeconds(cIdle)}`}
+                          />
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
                 <div className="grid">
                   <BarList
-                    title="Time spent by application (active time)"
+                    title="Time spent by application"
                     rows={summary?.apps ?? []}
                     getLabel={(r) => r.app_name}
-                    getSeconds={(r) => r.active_seconds}
+                    getActiveSeconds={(r) => r.active_seconds}
+                    getIdleSeconds={(r) => r.idle_seconds}
                   />
                   <BarList
-                    title="Browser time by domain (active time)"
+                    title="Browser time by domain"
                     rows={summary?.domains ?? []}
                     getLabel={(r) => r.domain}
-                    getSeconds={(r) => r.active_seconds}
+                    getActiveSeconds={(r) => r.active_seconds}
+                    getIdleSeconds={(r) => r.idle_seconds}
                   />
                 </div>
               </>

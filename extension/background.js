@@ -9,6 +9,7 @@
 const DAEMON_URL = "http://localhost:7777/log/tab";
 const FLUSH_ALARM = "lifelogger-flush";
 const FLUSH_INTERVAL_MIN = 0.5; // 30 seconds
+const IDLE_DETECTION_SECONDS = 120;
 
 // ── State ────────────────────────────────────────────────────────────────
 
@@ -211,8 +212,8 @@ chrome.idle.onStateChanged.addListener((state) => {
     currentTab.startTime = Date.now();
 });
 
-// Set idle detection threshold to 60 seconds
-chrome.idle.setDetectionInterval(60);
+// Keep browser idle detection aligned with the desktop watcher.
+chrome.idle.setDetectionInterval(IDLE_DETECTION_SECONDS);
 
 // ── Periodic flush (30 s alarm) ──────────────────────────────────────────
 

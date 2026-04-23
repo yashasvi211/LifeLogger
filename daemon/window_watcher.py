@@ -17,7 +17,8 @@ import requests
 
 DAEMON_URL = "http://localhost:7777/log/window"
 POLL_INTERVAL = 2        # seconds
-IDLE_THRESHOLD = 60_000  # milliseconds (60 s)
+IDLE_THRESHOLD = 120_000  # milliseconds (120 s)
+FLUSH_INTERVAL = 30       # seconds
 
 
 def _run(cmd: list[str]) -> str | None:
@@ -87,6 +88,7 @@ def main() -> None:
     active_seconds = 0.0
     idle_seconds = 0.0
     last_t = time.monotonic()
+    last_flush_t = last_t
 
     while True:
         time.sleep(POLL_INTERVAL)
@@ -122,6 +124,16 @@ def main() -> None:
             prev_title = title
             active_seconds = 0.0
             idle_seconds = 0.0
+            last_flush_t = now_t
+            continue
+
+        # Periodically flush the current window so summaries keep updating
+        # even while the user stays in the same app/window for a long time.
+        if (active_seconds > 0 or idle_seconds > 0) and (now_t - last_flush_t) >= FLUSH_INTERVAL:
+            post_log(prev_app, prev_title, active_seconds, idle_seconds)
+            active_seconds = 0.0
+            idle_seconds = 0.0
+            last_flush_t = now_t
 
 
 if __name__ == "__main__":

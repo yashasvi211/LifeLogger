@@ -268,6 +268,76 @@ def get_day_summary(day: str, min_active_seconds: float = 0, limit: int = 20):
         conn.close()
 
 
+@app.get("/day/{day}/activity")
+def get_day_activity(day: str, limit: int = 25):
+    """
+    Return the most recent backend writes for the selected day across both
+    window_log and tab_log so the UI can show what is being stored in real time.
+    """
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM (
+              SELECT
+                timestamp,
+                'window' AS source,
+                COALESCE(NULLIF(TRIM(app_name), ''), 'Unknown app') AS label,
+                window_title AS detail,
+                '' AS url,
+                active_seconds,
+                idle_seconds
+              FROM window_log
+              WHERE date(timestamp) = date(?)
+
+              UNION ALL
+
+              SELECT
+                timestamp,
+                'browser' AS source,
+                COALESCE(NULLIF(TRIM(domain), ''), 'unknown') AS label,
+                title AS detail,
+                url,
+                active_seconds,
+                idle_seconds
+              FROM tab_log
+              WHERE date(timestamp) = date(?)
+            )
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """,
+            (day, day, limit),
+        ).fetchall()
+
+        return {
+            "day": day,
+            "activity": [
+                {
+                    "timestamp": r[0],
+                    "source": r[1],
+                    "label": r[2],
+                    "detail": r[3],
+                    "url": r[4],
+                    "active_seconds": float(r[5] or 0),
+                    "idle_seconds": float(r[6] or 0),
+                    "state": (
+                        "idle"
+                        if float(r[6] or 0) > 0 and float(r[5] or 0) <= 0
+                        else "mixed"
+                        if float(r[6] or 0) > 0 and float(r[5] or 0) > 0
+                        else "active"
+                    ),
+                }
+                for r in rows
+            ],
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        conn.close()
+
+
 @app.post("/log/tab")
 def log_tab(payload: TabLogPayload):
     conn = get_connection()

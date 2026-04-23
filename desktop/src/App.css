@@ -322,6 +322,144 @@ body {
   margin: 2px 2px 10px;
 }
 
+.activityHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 2px 2px 12px;
+}
+
+.activityStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.statusDot.active {
+  background: rgba(125, 211, 252, 0.95);
+}
+
+.statusDot.idle {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.statusDot.mixed {
+  background: rgba(167, 139, 250, 0.95);
+}
+
+.activityList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 34vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.activityRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 10px;
+  background: var(--panel2);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 12px;
+}
+
+.activityRowTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.activitySourceWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pill.source.browser {
+  color: rgba(167, 139, 250, 0.95);
+}
+
+.pill.source.window {
+  color: rgba(125, 211, 252, 0.95);
+}
+
+.activityLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activityTime {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.activityDetail {
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activityMetrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.statePill {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  text-transform: capitalize;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.statePill.active {
+  color: rgba(125, 211, 252, 0.95);
+}
+
+.statePill.idle {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.statePill.mixed {
+  color: rgba(167, 139, 250, 0.95);
+}
+
+.metricValue {
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 12px;
+}
+
+.activityUrl {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  word-break: break-all;
+}
+
 .span2 {
   grid-column: span 2;
 }
@@ -425,5 +563,12 @@ body {
   }
   .list {
     max-height: none;
+  }
+  .activityHeader,
+  .activityRowTop {
+    flex-direction: column;
+  }
+  .activityTime {
+    white-space: normal;
   }
 }

@@ -18,7 +18,7 @@ function BarList({ title, rows, getLabel, getActiveSeconds, getIdleSeconds }) {
   }));
 
   return (
-    <div className="panel">
+    <div className="panel barPanel">
       <div className="panelTitle">{title}</div>
       <div className="barList">
         {rows.map((r, idx) => {

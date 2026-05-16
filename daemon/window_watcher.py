@@ -18,7 +18,7 @@ import requests
 DAEMON_URL = "http://localhost:7777/log/window"
 POLL_INTERVAL = 2        # seconds
 IDLE_THRESHOLD = 120_000  # milliseconds (120 s)
-FLUSH_INTERVAL = 30       # seconds
+FLUSH_INTERVAL = 10       # seconds
 
 
 def _run(cmd: list[str]) -> str | None:

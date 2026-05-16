@@ -1,14 +1,6 @@
 import React from "react";
+import { formatDuration } from "./formatDuration";
 import "./App.css";
-
-function formatSeconds(s) {
-  if (s == null) return "";
-  const secs = Math.max(0, Math.round(Number(s)));
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
 
 function BarList({ title, rows, getLabel, getActiveSeconds, getIdleSeconds }) {
   const max = Math.max(1, ...rows.map((r) => {
@@ -38,8 +30,8 @@ function BarList({ title, rows, getLabel, getActiveSeconds, getIdleSeconds }) {
                 <div className="barFillIdle" style={{ width: `${idlePct}%` }} title="Idle time" />
               </div>
               <div className="barValue mono">
-                <div className="activeTime" title="Active time">{formatSeconds(activeSecs)}</div>
-                {idleSecs > 0 && <div className="idleTime" title="Idle time">{formatSeconds(idleSecs)}</div>}
+                <div className="activeTime" title="Active time">{formatDuration(activeSecs)}</div>
+                {idleSecs > 0 && <div className="idleTime" title="Idle time">{formatDuration(idleSecs)}</div>}
               </div>
             </div>
           );

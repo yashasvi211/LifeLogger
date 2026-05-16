@@ -1,20 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import Sidebar from "./Sidebar";
 import BarList from "./BarList";
+import { formatDuration } from "./formatDuration";
 import "./App.css";
 
 const DAEMON_BASE_URL = "http://127.0.0.1:7777";
 const MIN_ACTIVE_SECONDS = 0;
-const REFRESH_INTERVAL_MS = 10000;
-
-function formatSeconds(s) {
-  if (s == null) return "";
-  const secs = Math.max(0, Math.round(Number(s)));
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
+const REFRESH_INTERVAL_MS = 2000;
 
 function App() {
   const [days, setDays] = useState([]);
@@ -23,8 +15,10 @@ function App() {
   const [loadingDays, setLoadingDays] = useState(true);
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [error, setError] = useState("");
+  const [lastSynced, setLastSynced] = useState(null);
   const hasLoadedDaysRef = useRef(false);
   const hasLoadedSummaryRef = useRef(false);
+  const [daemonStatus, setDaemonStatus] = useState("checking");
 
   useEffect(() => {
     let cancelled = false;
@@ -34,16 +28,28 @@ function App() {
       }
       setError("");
       try {
-        const res = await fetch(`${DAEMON_BASE_URL}/days?limit=90`);
+        const res = await fetch(`${DAEMON_BASE_URL}/days?limit=90&_t=${Date.now()}`);
         if (!res.ok) throw new Error(`Daemon /days failed (${res.status})`);
         const json = await res.json();
         if (cancelled) return;
         const list = Array.isArray(json.days) ? json.days : [];
         hasLoadedDaysRef.current = true;
         setDays(list);
-        setSelectedDay((prev) => prev ?? list[0] ?? null);
+        setDaemonStatus("operational");
+        
+        setSelectedDay((prev) => {
+          if (!prev) return list[0] ?? null;
+          // If we were on the latest day, and now there's a new latest day, switch to it
+          if (days.length > 0 && prev === days[0] && list[0] && prev !== list[0]) {
+            return list[0];
+          }
+          return prev;
+        });
       } catch (e) {
-        if (!cancelled) setError(String(e?.message ?? e));
+        if (!cancelled) {
+          setError(String(e?.message ?? e));
+          setDaemonStatus("error");
+        }
       } finally {
         if (!cancelled) setLoadingDays(false);
       }
@@ -70,15 +76,20 @@ function App() {
       setError("");
       try {
         const res = await fetch(
-          `${DAEMON_BASE_URL}/day/${encodeURIComponent(selectedDay)}/summary?min_active_seconds=${MIN_ACTIVE_SECONDS}&limit=20`,
+          `${DAEMON_BASE_URL}/day/${encodeURIComponent(selectedDay)}/summary?min_active_seconds=${MIN_ACTIVE_SECONDS}&limit=20&_t=${Date.now()}`,
         );
         if (!res.ok) throw new Error(`Daemon /summary failed (${res.status})`);
         const json = await res.json();
         if (cancelled) return;
         hasLoadedSummaryRef.current = true;
         setSummary(json);
+        setLastSynced(new Date());
+        setDaemonStatus("operational");
       } catch (e) {
-        if (!cancelled) setError(String(e?.message ?? e));
+        if (!cancelled) {
+          setError(String(e?.message ?? e));
+          setDaemonStatus("error");
+        }
       } finally {
         if (!cancelled) setLoadingSummary(false);
       }
@@ -110,7 +121,30 @@ function App() {
             <div className="contentTitle">{selectedDay ?? "—"}</div>
             <div className="contentMeta">Date-wise total time spent</div>
           </div>
-          <div className="contentMeta">Source: {DAEMON_BASE_URL}</div>
+          <div className="headerRight">
+            <div className="syncStatus">
+              <span className={`statusIndicator ${daemonStatus}`}>
+                {daemonStatus === "operational" && "● Daemon Operational"}
+                {daemonStatus === "error" && "● Daemon Error"}
+                {daemonStatus === "checking" && "● Checking..."}
+              </span>
+              {lastSynced && <span className="syncTime">Synced {lastSynced.toLocaleTimeString()}</span>}
+              <button 
+                className="refreshBtn" 
+                onClick={async () => {
+                  setLastSynced(null);
+                  // These are inside effects, so we can't call them directly here 
+                  // unless we move them. But we can just reload the window 
+                  // or use a 'refresh key' to trigger effects.
+                  window.location.reload(); 
+                }}
+                title="Force Reload"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+              </button>
+            </div>
+            <div className="contentMeta">Source: {DAEMON_BASE_URL}</div>
+          </div>
         </header>
 
         {error ? <div className="errorBox">{error}</div> : null}
@@ -129,16 +163,13 @@ function App() {
                   <div className="kpi kpiRow">
                     <div className="kpiInfo">
                       <div className="kpiLabel">Computer time</div>
-                      <div className="kpiValue mono">{formatSeconds(computer?.total_seconds ?? 0)}</div>
+                      <div className="kpiValue mono">{formatDuration(computer?.total_seconds ?? 0)}</div>
                       <div className="kpiLegendList">
                         <div className="kpiLegendItem">
-                          <span className="dot browser"></span>Browser {formatSeconds(Math.min(browser?.active_seconds || 0, computer?.active_seconds || 0))}
+                          <span className="dot active"></span>Active {formatDuration(computer?.active_seconds || 0)}
                         </div>
                         <div className="kpiLegendItem">
-                          <span className="dot active"></span>Other App {formatSeconds(Math.max(0, (computer?.active_seconds || 0) - (browser?.active_seconds || 0)))}
-                        </div>
-                        <div className="kpiLegendItem">
-                          <span className="dot idle"></span>Idle {formatSeconds(computer?.idle_seconds ?? 0)}
+                          <span className="dot idle"></span>Idle {formatDuration(computer?.idle_seconds ?? 0)}
                         </div>
                       </div>
                     </div>
@@ -147,16 +178,12 @@ function App() {
                       const cTotal = computer?.total_seconds || 1;
                       const cActive = computer?.active_seconds || 0;
                       const cIdle = computer?.idle_seconds || 0;
-                      const bActive = Math.min(browser?.active_seconds || 0, cActive);
-                      const otherActive = cActive - bActive;
                       
-                      const bPct = (bActive / cTotal) * 100;
-                      const oPct = (otherActive / cTotal) * 100;
+                      const activePct = (cActive / cTotal) * 100;
 
                       const gradient = `conic-gradient(
-                        rgba(167, 139, 250, 0.85) 0% ${bPct}%, 
-                        rgba(125, 211, 252, 0.85) ${bPct}% ${bPct + oPct}%, 
-                        rgba(255, 255, 255, 0.15) ${bPct + oPct}% 100%
+                        rgba(125, 211, 252, 0.85) 0% ${activePct}%, 
+                        rgba(255, 255, 255, 0.15) ${activePct}% 100%
                       )`;
 
                       return (
@@ -164,7 +191,7 @@ function App() {
                           <div 
                             className="kpiDonut" 
                             style={{ background: gradient }}
-                            title={`Browser: ${formatSeconds(bActive)} | Other: ${formatSeconds(otherActive)} | Idle: ${formatSeconds(cIdle)}`}
+                            title={`Active: ${formatDuration(cActive)} | Idle: ${formatDuration(cIdle)}`}
                           />
                         </div>
                       );

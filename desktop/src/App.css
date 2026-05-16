@@ -179,6 +179,88 @@ body {
   backdrop-filter: blur(10px);
 }
 
+.headerRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.liveClock {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  text-shadow: 0 0 10px rgba(125, 211, 252, 0.3);
+}
+
+.syncStatus {
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusIndicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.statusIndicator.operational {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.statusIndicator.error {
+  color: #fb7185;
+  background: rgba(251, 113, 133, 0.1);
+  border: 1px solid rgba(251, 113, 133, 0.2);
+}
+
+.statusIndicator.checking {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+.syncTime {
+  font-size: 10px;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.refreshBtn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  margin-left: 4px;
+}
+
+.refreshBtn:hover {
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.1);
+  transform: rotate(30deg);
+}
+
+.refreshBtn:active {
+  transform: rotate(180deg);
+}
+
 .contentTitle {
   font-size: 20px;
   font-weight: 820;
